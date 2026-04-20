@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HR Analytics & Reporting</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:#0f172a;color:#e2e8f0;min-height:100vh}
+nav{background:#1e293b;padding:.9rem 2rem;display:flex;align-items:center;gap:1rem;border-bottom:1px solid #334155;position:sticky;top:0;z-index:10}
+nav h1{font-size:1.1rem;font-weight:700;color:#38bdf8;letter-spacing:-.02em}
+nav span{font-size:.8rem;color:#64748b;background:#0f172a;padding:.2rem .7rem;border-radius:20px;border:1px solid #334155}
+.layout{display:flex;height:calc(100vh - 54px)}
+aside{width:210px;background:#1e293b;padding:1.2rem .8rem;border-right:1px solid #334155;flex-shrink:0;display:flex;flex-direction:column;gap:.3rem}
+.nav-btn{width:100%;padding:.6rem 1rem;border:none;border-radius:8px;background:transparent;color:#94a3b8;cursor:pointer;text-align:left;font-size:.88rem;display:flex;align-items:center;gap:.6rem;transition:background .15s,color .15s}
+.nav-btn:hover{background:#334155;color:#e2e8f0}
+.nav-btn.active{background:#0ea5e9;color:#fff;font-weight:500}
+.nav-label{font-size:.7rem;color:#475569;text-transform:uppercase;letter-spacing:.08em;padding:.6rem 1rem .2rem}
+main{flex:1;overflow-y:auto;padding:1.8rem 2rem;background:#0f172a}
+.section{display:none;animation:fadein .2s}
+.section.active{display:block}
+@keyframes fadein{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+h2{font-size:1.2rem;font-weight:600;color:#f1f5f9;margin-bottom:1.4rem}
+.filters{background:#1e293b;border:1px solid #334155;border-radius:12px;padding:1.2rem 1.4rem;margin-bottom:1.2rem;display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:1rem}
+label{display:block;font-size:.75rem;color:#64748b;margin-bottom:.35rem;text-transform:uppercase;letter-spacing:.06em}
+input,select{width:100%;padding:.45rem .7rem;background:#0f172a;border:1px solid #334155;border-radius:6px;color:#e2e8f0;font-size:.88rem;outline:none;transition:border-color .15s}
+input:focus,select:focus{border-color:#0ea5e9}
+.btn{padding:.55rem 1.4rem;border:none;border-radius:8px;cursor:pointer;font-size:.88rem;font-weight:500;transition:background .15s,transform .1s;display:inline-flex;align-items:center;gap:.4rem}
+.btn:active{transform:scale(.97)}
+.btn-primary{background:#0ea5e9;color:#fff}
+.btn-primary:hover{background:#0284c7}
+.btn-sm{padding:.35rem .9rem;font-size:.8rem;background:#334155;color:#e2e8f0;border-radius:6px;border:none;cursor:pointer;transition:background .15s}
+.btn-sm:hover{background:#475569}
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:1rem;margin-bottom:1.4rem}
+.kpi-card{background:#1e293b;border:1px solid #334155;border-radius:12px;padding:1.2rem;transition:border-color .2s}
+.kpi-card:hover{border-color:#475569}
+.kpi-card.flagged{border-color:#f59e0b}
+.metric-name{font-size:.75rem;color:#64748b;text-transform:uppercase;letter-spacing:.06em;margin-bottom:.4rem}
+.metric-value{font-size:1.9rem;font-weight:700;color:#f1f5f9;line-height:1}
+.metric-meta{font-size:.8rem;color:#64748b;margin-top:.4rem;display:flex;align-items:center;gap:.4rem}
+.up{color:#22c55e}.down{color:#ef4444}.stable{color:#f59e0b}
+.highlights{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-bottom:1.4rem}
+.highlight{background:#1e293b;border:1px solid #334155;border-radius:12px;padding:1.2rem;text-align:center}
+.highlight .val{font-size:2.2rem;font-weight:700;line-height:1;margin:.3rem 0}
+.highlight .lbl{font-size:.75rem;color:#64748b;text-transform:uppercase;letter-spacing:.06em}
+.insights-box{background:#1e293b;border:1px solid #334155;border-radius:12px;padding:1.2rem 1.4rem;margin-bottom:1.4rem}
+.insights-box h3{font-size:.85rem;color:#64748b;text-transform:uppercase;letter-spacing:.06em;margin-bottom:.8rem}
+.insight{padding:.5rem 0;border-bottom:1px solid #0f172a;font-size:.88rem;color:#cbd5e1;display:flex;gap:.5rem}
+.insight:last-child{border-bottom:none}
+.insight::before{content:"•";color:#0ea5e9;flex-shrink:0}
+.report-card{background:#1e293b;border:1px solid #334155;border-radius:12px;padding:1.4rem}
+.report-card .row{display:flex;gap:.5rem;align-items:baseline;margin:.35rem 0;font-size:.9rem}
+.report-card .row .k{color:#64748b;min-width:130px;font-size:.82rem;text-transform:uppercase;letter-spacing:.04em}
+.export-row{margin-top:1rem;display:flex;gap:.5rem;flex-wrap:wrap}
+.table-wrap{background:#1e293b;border:1px solid #334155;border-radius:12px;overflow:hidden}
+table{width:100%;border-collapse:collapse}
+thead th{padding:.7rem 1rem;text-align:left;font-size:.75rem;color:#64748b;text-transform:uppercase;letter-spacing:.06em;border-bottom:1px solid #334155;background:#1e293b}
+tbody tr:hover{background:#334155}
+tbody td{padding:.7rem 1rem;font-size:.88rem;border-bottom:1px solid #0f172a}
+.badge{display:inline-block;padding:.15rem .55rem;border-radius:20px;font-size:.75rem;font-weight:500}
+.badge-blue{background:#0ea5e918;color:#38bdf8;border:1px solid #0ea5e940}
+.badge-green{background:#22c55e18;color:#4ade80;border:1px solid #22c55e40}
+.badge-yellow{background:#f59e0b18;color:#fbbf24;border:1px solid #f59e0b40}
+.badge-red{background:#ef444418;color:#f87171;border:1px solid #ef444440}
+.loader{text-align:center;padding:2.5rem;color:#475569;font-size:.9rem}
+.loader::before{content:"⟳ ";animation:spin 1s linear infinite;display:inline-block}
+@keyframes spin{to{transform:rotate(360deg)}}
+.msg{padding:.8rem 1rem;border-radius:8px;font-size:.88rem;margin-top:.8rem}
+.msg.ok{background:#22c55e10;border:1px solid #22c55e30;color:#4ade80}
+.msg.err{background:#ef444410;border:1px solid #ef444430;color:#f87171}
+#export-msg{margin-top:.8rem}
+</style>
+</head>
+<body>
+<nav>
+  <h1>HR Analytics &amp; Reporting</h1>
+  <span>Sub-System Demo</span>
+</nav>
+<div class="layout">
+  <aside>
+    <div class="nav-label">Navigation</div>
+    <button class="nav-btn active" onclick="show('dashboard',this)">📊 Dashboard</button>
+    <button class="nav-btn" onclick="show('reports',this)">📄 Reports</button>
+    <button class="nav-btn" onclick="show('kpi',this)">📈 KPI Snapshot</button>
+  </aside>
+
+  <main>
+
+    <!-- ── DASHBOARD ─────────────────────────────── -->
+    <div id="dashboard" class="section active">
+      <h2>Dashboard</h2>
+      <div class="filters">
+        <div><label>User ID</label><input id="d-user" value="U002"></div>
+        <div><label>Department</label><input id="d-dept" placeholder="All departments"></div>
+        <div><label>Status</label>
+          <select id="d-status">
+            <option value="ALL">All</option>
+            <option value="ACTIVE" selected>Active</option>
+            <option value="INACTIVE">Inactive</option>
+          </select>
+        </div>
+        <div><label>Start Date</label><input type="date" id="d-start" value="2025-01-01"></div>
+        <div><label>End Date</label><input type="date" id="d-end" value="2025-03-31"></div>
+      </div>
+      <button class="btn btn-primary" onclick="loadDashboard()">Load Dashboard</button>
+      <div id="d-result" style="margin-top:1.4rem"></div>
+    </div>
+
+    <!-- ── REPORTS ────────────────────────────────── -->
+    <div id="reports" class="section">
+      <h2>Reports</h2>
+      <div class="filters">
+        <div><label>Report Type</label>
+          <select id="r-type">
+            <option value="FULL_HR_SUMMARY">Full HR Summary</option>
+            <option value="ATTRITION">Attrition</option>
+            <option value="EMPLOYEE_GROWTH">Employee Growth</option>
+            <option value="COMPENSATION">Compensation</option>
+            <option value="DEPARTMENT_METRICS">Department Metrics</option>
+            <option value="PERFORMANCE">Performance</option>
+          </select>
+        </div>
+        <div><label>Status</label>
+          <select id="r-status">
+            <option value="ALL">All</option>
+            <option value="ACTIVE" selected>Active</option>
+            <option value="INACTIVE">Inactive</option>
+          </select>
+        </div>
+        <div><label>Start Date</label><input type="date" id="r-start" value="2025-01-01"></div>
+        <div><label>End Date</label><input type="date" id="r-end" value="2025-03-31"></div>
+      </div>
+      <button class="btn btn-primary" onclick="generateReport()">Generate Report</button>
+      <div id="r-result" style="margin-top:1.4rem"></div>
+    </div>
+
+    <!-- ── KPI SNAPSHOT ───────────────────────────── -->
+    <div id="kpi" class="section">
+      <h2>KPI Snapshot</h2>
+      <div class="filters">
+        <div><label>User ID</label><input id="k-user" value="U003"></div>
+        <div><label>Department</label><input id="k-dept" value="Engineering"></div>
+      </div>
+      <button class="btn btn-primary" onclick="loadKPI()">Get KPI Snapshot</button>
+      <div id="k-result" style="margin-top:1.4rem"></div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+function show(id, btn) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  btn.classList.add('active');
+}
+
+function trend(t) {
+  if (t === 'UP')   return '<span class="up">↑ UP</span>';
+  if (t === 'DOWN') return '<span class="down">↓ DOWN</span>';
+  return '<span class="stable">→ STABLE</span>';
+}
+
+// ── Dashboard ─────────────────────────────────────────────────────────────
+async function loadDashboard() {
+  const el = document.getElementById('d-result');
+  el.innerHTML = '<div class="loader">Loading dashboard</div>';
+  const q = new URLSearchParams({
+    userId: document.getElementById('d-user').value,
+    dept:   document.getElementById('d-dept').value,
+    status: document.getElementById('d-status').value,
+    start:  document.getElementById('d-start').value,
+    end:    document.getElementById('d-end').value
+  });
+  try {
+    const res = await fetch('/api/dashboard?' + q);
+    if (!res.ok) throw new Error(await res.text());
+    const d = await res.json();
+
+    const cards = d.kpiCards.map(k => `
+      <div class="kpi-card${k.flagged?' flagged':''}">
+        <div class="metric-name">${k.metricName}</div>
+        <div class="metric-value">${k.currentValue.toFixed(2)}<span style="font-size:1rem;color:#64748b">${k.unit}</span></div>
+        <div class="metric-meta">
+          ${trend(k.trend)}
+          <span>prev ${k.previousValue.toFixed(2)}${k.unit}</span>
+          ${k.flagged ? '<span class="badge badge-yellow">⚠ flagged</span>' : ''}
+        </div>
+      </div>`).join('');
+
+    const insights = d.insights.map(i => `<div class="insight">${i}</div>`).join('');
+
+    el.innerHTML = `
+      <div style="margin-bottom:.8rem;display:flex;gap:.5rem;flex-wrap:wrap">
+        <span class="badge badge-blue">ID: ${d.dashboardId}</span>
+        <span class="badge badge-green">${d.widgetIds.length} widgets</span>
+      </div>
+      <div class="highlights">
+        <div class="highlight">
+          <div class="lbl">Attrition Rate</div>
+          <div class="val" style="color:#ef4444">${d.attritionRate.toFixed(2)}%</div>
+        </div>
+        <div class="highlight">
+          <div class="lbl">Employee Growth</div>
+          <div class="val" style="color:#22c55e">${d.employeeGrowth.toFixed(2)}%</div>
+        </div>
+        <div class="highlight">
+          <div class="lbl">Avg Performance</div>
+          <div class="val" style="color:#0ea5e9">${d.avgPerformance.toFixed(2)}<span style="font-size:1rem;color:#64748b">/5.0</span></div>
+        </div>
+      </div>
+      <div class="kpi-grid">${cards}</div>
+      <div class="insights-box">
+        <h3>AI-Generated Insights</h3>
+        ${insights || '<div class="insight">No insights available.</div>'}
+      </div>`;
+  } catch(e) {
+    el.innerHTML = `<div class="msg err">Error: ${e.message}</div>`;
+  }
+}
+
+// ── Reports ───────────────────────────────────────────────────────────────
+let lastReportId = null;
+
+async function generateReport() {
+  const el = document.getElementById('r-result');
+  el.innerHTML = '<div class="loader">Generating report</div>';
+  const q = new URLSearchParams({
+    type:   document.getElementById('r-type').value,
+    status: document.getElementById('r-status').value,
+    start:  document.getElementById('r-start').value,
+    end:    document.getElementById('r-end').value
+  });
+  try {
+    const res = await fetch('/api/report?' + q);
+    if (!res.ok) throw new Error(await res.text());
+    const r = await res.json();
+    lastReportId = r.reportId;
+    el.innerHTML = `
+      <div class="report-card">
+        <div class="row"><span class="k">Report ID</span><code style="color:#38bdf8;font-size:.85rem">${r.reportId}</code></div>
+        <div class="row"><span class="k">Title</span>${r.reportTitle}</div>
+        <div class="row"><span class="k">Type</span><span class="badge badge-blue">${r.reportType}</span></div>
+        <div class="row"><span class="k">Sections</span>${r.sectionCount}</div>
+        <div class="row"><span class="k">Generated</span>${r.generatedDate}</div>
+        <div class="export-row">
+          <button class="btn-sm" onclick="exportReport('csv')">⬇ CSV</button>
+          <button class="btn-sm" onclick="exportReport('pdf')">⬇ PDF</button>
+          <button class="btn-sm" onclick="exportReport('xlsx')">⬇ XLSX</button>
+          <button class="btn-sm" onclick="exportReport('pptx')">⬇ PPTX (invalid — test error)</button>
+        </div>
+        <div id="export-msg"></div>
+      </div>`;
+  } catch(e) {
+    el.innerHTML = `<div class="msg err">Error: ${e.message}</div>`;
+  }
+}
+
+async function exportReport(fmt) {
+  const el = document.getElementById('export-msg');
+  if (!lastReportId) { el.innerHTML = '<div class="msg err">Generate a report first.</div>'; return; }
+  el.innerHTML = '<div class="loader">Exporting</div>';
+  try {
+    const res = await fetch(`/api/export?reportId=${lastReportId}&format=${fmt}`);
+    if (!res.ok) throw new Error((await res.json()).error);
+    const d = await res.json();
+    el.innerHTML = `<div class="msg ok">✓ [${fmt.toUpperCase()}] exported → ${d.path}</div>`;
+  } catch(e) {
+    el.innerHTML = `<div class="msg err">⚠ ${e.message}</div>`;
+  }
+}
+
+// ── KPI Snapshot ──────────────────────────────────────────────────────────
+async function loadKPI() {
+  const el = document.getElementById('k-result');
+  el.innerHTML = '<div class="loader">Loading KPIs</div>';
+  const q = new URLSearchParams({
+    userId: document.getElementById('k-user').value,
+    dept:   document.getElementById('k-dept').value
+  });
+  try {
+    const res = await fetch('/api/kpi?' + q);
+    if (!res.ok) throw new Error((await res.json()).error);
+    const kpis = await res.json();
+    const rows = kpis.map(k => `<tr>
+      <td><strong>${k.metricName}</strong></td>
+      <td>${k.currentValue.toFixed(2)}<span style="color:#64748b">${k.unit}</span></td>
+      <td>${k.previousValue.toFixed(2)}<span style="color:#64748b">${k.unit}</span></td>
+      <td>${trend(k.trend)}</td>
+      <td>${k.flagged
+        ? '<span class="badge badge-yellow">⚠ Unavailable</span>'
+        : '<span class="badge badge-green">OK</span>'}</td>
+    </tr>`).join('');
+    el.innerHTML = `
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Metric</th><th>Current</th><th>Previous</th><th>Trend</th><th>Status</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`;
+  } catch(e) {
+    el.innerHTML = `<div class="msg err">Error: ${e.message}</div>`;
+  }
+}
+</script>
+</body>
+</html>
