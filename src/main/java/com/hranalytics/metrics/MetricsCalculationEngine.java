@@ -7,58 +7,46 @@ import java.util.Map;
 import java.util.logging.Logger;
 
 /**
- * Central engine that delegates metric calculations to registered MetricStrategy instances.
- * Uses a Map<MetricType, MetricStrategy> — no switch statements or if-else chains on type.
- * To add a new metric: register a new MetricStrategy implementation. Do not modify this class.
- * Pattern: Strategy (Behavioural). Owner: Raihan Naeem.
+ * Delegates metric calculations to registered MetricCalculator instances.
+ * Uses Map<MetricType, MetricCalculator> — no switch statements or if-else chains.
+ * To add a new metric: extend MetricCalculator, register here. Do not modify this class.
+ * Pattern: Template Method (Behavioural). Owner: Raihan Naeem.
  */
 public class MetricsCalculationEngine {
 
     private static final Logger LOG = Logger.getLogger(MetricsCalculationEngine.class.getName());
 
-    /** Strategy registry: each MetricType maps to exactly one MetricStrategy. */
-    private final Map<MetricType, MetricStrategy> strategies = new EnumMap<>(MetricType.class);
+    private final Map<MetricType, MetricCalculator> calculators = new EnumMap<>(MetricType.class);
 
     public MetricsCalculationEngine() {
-        // Register all built-in strategies
-        strategies.put(MetricType.ATTRITION_RATE,        new AttritionRateStrategy());
-        strategies.put(MetricType.EMPLOYEE_GROWTH,       new EmployeeGrowthStrategy());
-        strategies.put(MetricType.AVERAGE_PERFORMANCE,   new AveragePerformanceStrategy());
-        strategies.put(MetricType.DEPARTMENT_METRICS,    new DepartmentMetricsStrategy());
-        strategies.put(MetricType.COMPENSATION_ANALYTICS,new CompensationAnalyticsStrategy());
+        calculators.put(MetricType.ATTRITION_RATE,         new AttritionRateCalculator());
+        calculators.put(MetricType.EMPLOYEE_GROWTH,        new EmployeeGrowthCalculator());
+        calculators.put(MetricType.AVERAGE_PERFORMANCE,    new AveragePerformanceCalculator());
+        calculators.put(MetricType.DEPARTMENT_METRICS,     new DepartmentMetricsCalculator());
+        calculators.put(MetricType.COMPENSATION_ANALYTICS, new CompensationAnalyticsCalculator());
     }
 
-    /**
-     * Calculates a single metric by delegating to the registered strategy.
-     * Throws IllegalArgumentException if the metric type has no registered strategy.
-     */
+    /** Calculates a single metric by delegating to the registered calculator. */
     public MetricResult calculate(MetricType type, ProcessedData data) {
-        MetricStrategy strategy = strategies.get(type);
-        if (strategy == null) {
-            throw new IllegalArgumentException("No strategy registered for MetricType: " + type);
-        }
-        MetricResult result = strategy.calculate(data);
+        MetricCalculator calc = calculators.get(type);
+        if (calc == null) throw new IllegalArgumentException(
+                "No calculator registered for MetricType: " + type);
+        MetricResult result = calc.calculate(data);
         LOG.info("Calculated: " + result);
         return result;
     }
 
-    /**
-     * Calculates all registered metrics and returns a full result map.
-     * Every MetricType in the registry is computed even if some fail (flagged results are included).
-     */
+    /** Calculates all registered metrics and returns the full result map. */
     public Map<MetricType, MetricResult> calculateAll(ProcessedData data) {
         Map<MetricType, MetricResult> results = new EnumMap<>(MetricType.class);
-        strategies.keySet().forEach(type -> results.put(type, calculate(type, data)));
+        calculators.keySet().forEach(type -> results.put(type, calculate(type, data)));
         LOG.info("MetricsCalculationEngine: all " + results.size() + " metrics calculated.");
         return results;
     }
 
-    /**
-     * Allows registration of additional strategy implementations at runtime.
-     * Called to extend the engine without modifying its source.
-     */
-    public void registerStrategy(MetricType type, MetricStrategy strategy) {
-        strategies.put(type, strategy);
-        LOG.info("Registered new strategy for: " + type);
+    /** Registers an additional calculator at runtime — extends without modifying this class. */
+    public void registerCalculator(MetricType type, MetricCalculator calculator) {
+        calculators.put(type, calculator);
+        LOG.info("Registered new calculator for: " + type);
     }
 }

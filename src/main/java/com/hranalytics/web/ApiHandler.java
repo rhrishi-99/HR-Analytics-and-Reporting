@@ -1,12 +1,13 @@
 package com.hranalytics.web;
 
-import com.hranalytics.domain.DateRange;
-import com.hranalytics.domain.FilterCriteria;
 import com.hranalytics.exceptions.HRAnalyticsException;
 import com.hranalytics.facade.HRAnalyticsFacade;
 import com.hranalytics.integration.dto.DashboardSnapshot;
 import com.hranalytics.integration.dto.KPISnapshot;
 import com.hranalytics.integration.dto.ReportSummary;
+import com.hranalytics.web.controller.DashboardController;
+import com.hranalytics.web.controller.KPIController;
+import com.hranalytics.web.controller.ReportController;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 
@@ -15,22 +16,35 @@ import java.io.OutputStream;
 import java.net.URI;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
-import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
- * HTTP handler for /api/* routes. Delegates to HRAnalyticsFacade and returns JSON.
- * Manually builds JSON to avoid requiring external libraries.
- * Routes: /api/dashboard, /api/report, /api/export, /api/kpi
+ * MVC — View + Router layer for the web API.
+ * Routes incoming HTTP requests to the appropriate Controller,
+ * receives the Model (DTO), and serialises it to JSON for the View (browser).
+ *
+ * Responsibilities of this class (View/Router only):
+ *   - Parse URL query parameters
+ *   - Route path → correct Controller method
+ *   - Serialise DTO Model → JSON string
+ *   - Write HTTP response
+ *
+ * It does NOT contain any business logic — that lives in the Controllers and Facade.
+ * Pattern: MVC — View/Router. Owner: R G Rhrishi.
  */
 class ApiHandler implements HttpHandler {
 
-    private final HRAnalyticsFacade facade;
+    // MVC Controllers — business logic delegates live here
+    private final DashboardController dashboardController;
+    private final ReportController    reportController;
+    private final KPIController       kpiController;
 
     ApiHandler(HRAnalyticsFacade facade) {
-        this.facade = facade;
+        this.dashboardController = new DashboardController(facade);
+        this.reportController    = new ReportController(facade);
+        this.kpiController       = new KPIController(facade);
     }
 
     @Override
@@ -38,20 +52,20 @@ class ApiHandler implements HttpHandler {
         String path = ex.getRequestURI().getPath();
         ex.getResponseHeaders().add("Content-Type", "application/json");
         ex.getResponseHeaders().add("Access-Control-Allow-Origin", "*");
+
         try {
-            Map<String, String> p = parseQuery(ex.getRequestURI());
+            Map<String, String> params = parseQuery(ex.getRequestURI());
+
+            // Router — delegates to the correct MVC Controller
             String json = switch (path) {
-                case "/api/dashboard" -> dashboardJson(facade.loadDashboard(
-                        p.getOrDefault("userId", "U002"), buildFilter(p)));
-                case "/api/report"    -> reportJson(facade.generateReport(
-                        p.getOrDefault("type", "FULL_HR_SUMMARY"), buildFilter(p)));
-                case "/api/export"    -> "{\"path\":\"" + escape(facade.exportReport(
-                        p.getOrDefault("reportId", ""), p.getOrDefault("format", "csv"))) + "\"}";
-                case "/api/kpi"       -> kpiListJson(facade.getKPISnapshot(
-                        p.getOrDefault("userId", "U003"), p.getOrDefault("dept", "Engineering")));
+                case "/api/dashboard" -> dashboardJson(dashboardController.handle(params));
+                case "/api/report"    -> reportJson(reportController.handleGenerate(params));
+                case "/api/export"    -> "{\"path\":\"" + escape(reportController.handleExport(params)) + "\"}";
+                case "/api/kpi"       -> kpiListJson(kpiController.handle(params));
                 default -> throw new IllegalArgumentException("Unknown endpoint: " + path);
             };
             send(ex, 200, json);
+
         } catch (HRAnalyticsException e) {
             send(ex, 403, "{\"error\":\"" + escape(e.getMessage()) + "\"}");
         } catch (Exception e) {
@@ -59,27 +73,14 @@ class ApiHandler implements HttpHandler {
         }
     }
 
-    // ── Filter builder ───────────────────────────────────────────────────────
-
-    private FilterCriteria buildFilter(Map<String, String> p) {
-        FilterCriteria f = new FilterCriteria();
-        f.setFilterStatus(p.getOrDefault("status", "ALL"));
-        String dept = p.getOrDefault("dept", "");
-        if (!dept.isBlank()) f.setFilterDepartment(List.of(dept.split(",")));
-        String start = p.get("start"), end = p.get("end");
-        if (start != null && end != null && !start.isBlank() && !end.isBlank())
-            f.setDateRange(new DateRange(LocalDate.parse(start), LocalDate.parse(end)));
-        return f;
-    }
-
-    // ── JSON builders ────────────────────────────────────────────────────────
+    // ── View: JSON serialisers (Model → JSON string) ─────────────────────────
 
     private String dashboardJson(DashboardSnapshot d) {
         return "{" +
-            "\"dashboardId\":\"" + d.getDashboardId() + "\"," +
-            "\"attritionRate\":"  + d.getAttritionRate()   + "," +
-            "\"employeeGrowth\":" + d.getEmployeeGrowth()  + "," +
-            "\"avgPerformance\":" + d.getAvgPerformance()  + "," +
+            "\"dashboardId\":\""  + d.getDashboardId()    + "\"," +
+            "\"attritionRate\":"  + d.getAttritionRate()  + "," +
+            "\"employeeGrowth\":" + d.getEmployeeGrowth() + "," +
+            "\"avgPerformance\":" + d.getAvgPerformance() + "," +
             "\"widgetIds\":"      + strListJson(d.getWidgetIds())  + "," +
             "\"insights\":"       + strListJson(d.getInsights())   + "," +
             "\"kpiCards\":"       + kpiListJson(d.getKpiCards())   +
@@ -88,11 +89,11 @@ class ApiHandler implements HttpHandler {
 
     private String reportJson(ReportSummary r) {
         return "{" +
-            "\"reportId\":\""     + r.getReportId()                    + "\"," +
-            "\"reportTitle\":\""  + escape(r.getReportTitle())         + "\"," +
-            "\"reportType\":\""   + r.getReportType()                  + "\"," +
-            "\"sectionCount\":"   + r.getSectionCount()                + "," +
-            "\"generatedDate\":\"" + r.getGeneratedDate()              + "\"" +
+            "\"reportId\":\""      + r.getReportId()          + "\"," +
+            "\"reportTitle\":\""   + escape(r.getReportTitle()) + "\"," +
+            "\"reportType\":\""    + r.getReportType()         + "\"," +
+            "\"sectionCount\":"    + r.getSectionCount()       + "," +
+            "\"generatedDate\":\"" + r.getGeneratedDate()      + "\"" +
             "}";
     }
 
@@ -102,12 +103,12 @@ class ApiHandler implements HttpHandler {
             if (i > 0) sb.append(",");
             KPISnapshot k = list.get(i);
             sb.append("{")
-              .append("\"metricName\":\"")   .append(escape(k.getMetricName()))  .append("\",")
-              .append("\"currentValue\":")   .append(k.getCurrentValue())        .append(",")
-              .append("\"previousValue\":")  .append(k.getPreviousValue())       .append(",")
-              .append("\"trend\":\"")        .append(k.getTrend())               .append("\",")
-              .append("\"unit\":\"")         .append(escape(k.getUnit()))        .append("\",")
-              .append("\"flagged\":")        .append(k.isFlagged())
+              .append("\"metricName\":\"")  .append(escape(k.getMetricName()))  .append("\",")
+              .append("\"currentValue\":")  .append(k.getCurrentValue())        .append(",")
+              .append("\"previousValue\":") .append(k.getPreviousValue())       .append(",")
+              .append("\"trend\":\"")       .append(k.getTrend())               .append("\",")
+              .append("\"unit\":\"")        .append(escape(k.getUnit()))        .append("\",")
+              .append("\"flagged\":")       .append(k.isFlagged())
               .append("}");
         }
         return sb.append("]").toString();
@@ -122,7 +123,7 @@ class ApiHandler implements HttpHandler {
         return sb.append("]").toString();
     }
 
-    // ── Utilities ────────────────────────────────────────────────────────────
+    // ── Router utilities ─────────────────────────────────────────────────────
 
     private Map<String, String> parseQuery(URI uri) {
         Map<String, String> map = new HashMap<>();

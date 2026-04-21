@@ -9,8 +9,8 @@ and transforms it into dashboards, KPI cards, charts, and exportable reports.
 | Member | USN | Owns |
 |--------|-----|------|
 | Prem M Thakur | PES1UG23AM214 | Data pipeline, Access control, Facade, Integration boundaries |
-| Raihan Naeem | PES1UG23AM227 | Metrics engine, Strategy implementations, Analytics engine |
-| R G Rhrishi | PES1UG23AM222 | Charts, Dashboard, Reports, Exports, Filters, Web UI |
+| Raihan Naeem | PES1UG23AM227 | Metrics engine, Template Method implementations, Analytics engine |
+| R G Rhrishi | PES1UG23AM222 | Charts, Dashboard, Reports, Exports, Filters, Web UI, MVC controllers |
 
 ---
 
@@ -20,7 +20,8 @@ and transforms it into dashboards, KPI cards, charts, and exportable reports.
 |---------|----------|-------|
 | **Facade** | Structural | `HRAnalyticsFacade` — single external entry point for all subsystems |
 | **Abstract Factory** | Creational | `ChartFactory` → `EmployeeGrowthChartFactory`, `AttritionChartFactory`, `CompensationChartFactory` |
-| **Strategy** | Behavioural | `MetricStrategy` → one class per metric, dispatched via `Map<MetricType, MetricStrategy>` |
+| **Template Method** | Behavioural | `MetricCalculator` — skeleton in base class, 5 concrete calculators fill in steps |
+| **MVC** | Architectural | `DashboardController`, `ReportController`, `KPIController` — web layer separation |
 
 ---
 
@@ -36,7 +37,7 @@ External Subsystems
         ├── DataCollectionModule      ← pulls from 4 service interfaces
         ├── DataIntegrationLayer      ← cleans & deduplicates
         ├── DataProcessingEngine      ← applies filters
-        ├── MetricsCalculationEngine  ← Strategy pattern
+        ├── MetricsCalculationEngine  ← Template Method pattern
         ├── AnalyticsEngine           ← generates insights
         ├── DashboardManager          ← Abstract Factory (charts)
         ├── ReportGenerator
@@ -107,10 +108,12 @@ src/main/java/com/hranalytics/
 │   ├── mapper/                      PayrollMapper, AttendanceMapper, PerformanceMapper
 │   ├── service/                     HRAnalyticsService + 4 inbound service interfaces
 │   └── stub/                        In-memory stubs for all 4 services
-├── metrics/                         MetricsCalculationEngine + 5 Strategy classes
+├── metrics/                         MetricCalculator (abstract) + 5 concrete calculators + engine
 ├── pipeline/                        RawHRData, ProcessedData, pipeline stage classes
 ├── reports/                         ReportGenerator, Report, ReportType
-└── web/                             WebServer, ApiHandler, WebMain
+└── web/
+    ├── controller/                  DashboardController, ReportController, KPIController (MVC)
+    └── WebServer, ApiHandler, WebMain
 
 src/main/resources/web/
 └── index.html                       Web UI frontend
