@@ -13,7 +13,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | Member | USN | Owns | Pattern |
 |---|---|---|---|
 | Prem M Thakur | PES1UG23AM214 | Data pipeline, access control, Facade, integration boundaries | Facade (Structural) |
-| Raihan Naeem | PES1UG23AM227 | Metrics engine, all MetricCalculator subclasses, AnalyticsEngine | Template Method (Behavioural) |
+| Raihan Naeem | PES1UG23AM227 | Metrics engine, all MetricCalculator implementations, AnalyticsEngine | Proxy (Structural) |
 | R G Rhrishi | PES1UG23AM222 | Charts, dashboards, reports, exports, filters, Web UI, MVC controllers | Abstract Factory (Creational) + MVC (Architectural) |
 
 When asked to modify code, respect these boundaries. If a change crosses boundaries, flag it explicitly rather than silently editing another owner's module.
@@ -29,7 +29,7 @@ HRMS Core Modules (Employee / Payroll / Attendance / Performance)
     → DataCollectionModule
     → DataIntegrationLayer
     → DataProcessingEngine
-    → MetricsCalculationEngine   (Template Method pattern lives here)
+    → MetricsCalculationEngine   (Proxy pattern lives here)
     → AnalyticsEngine
     → DashboardManager  +  ReportGenerator
     → ExportSharingModule
@@ -66,13 +66,12 @@ Four patterns are implemented; three are course-mandated (one per category), plu
 - No new external API may be added without routing through the Facade.
 - Owner: Prem M Thakur. File: `src/main/java/com/hranalytics/facade/HRAnalyticsFacade.java`.
 
-### Behavioural — Template Method (MetricCalculator)
-- Abstract base class `MetricCalculator` with a `final calculate(ProcessedData)` method that defines the skeleton.
-- Abstract hook methods subclasses must implement: `computeCurrentValue()`, `computePreviousValue()`, `getMetricType()`, `getMetricName()`, `getUnit()`.
-- Optional override hook: `computeBreakdown()` — defaults to `Map.of()`.
-- Five concrete calculators: `AttritionRateCalculator`, `EmployeeGrowthCalculator`, `AveragePerformanceCalculator`, `DepartmentMetricsCalculator`, `CompensationAnalyticsCalculator`.
-- `MetricsCalculationEngine` holds `Map<MetricType, MetricCalculator>` and delegates via `registerCalculator()`.
-- To add a metric: new `MetricCalculator` subclass + register in engine. Never edit `MetricsCalculationEngine` logic.
+### Structural — Proxy (MetricCalculatorProxy)
+- Subject interface `MetricCalculator` with `calculate(ProcessedData)`, `getMetricType()`, `getMetricName()`, `getUnit()`.
+- Proxy class `MetricCalculatorProxy` implements `MetricCalculator`, wraps any real calculator, and transparently adds logging and `METRIC_CALCULATION_OVERFLOW` handling in one place.
+- Five Real Subject implementations: `AttritionRateCalculator`, `EmployeeGrowthCalculator`, `AveragePerformanceCalculator`, `DepartmentMetricsCalculator`, `CompensationAnalyticsCalculator` — contain only domain computation logic, no cross-cutting concerns.
+- `MetricsCalculationEngine` holds `Map<MetricType, MetricCalculator>` (all proxied) and wraps every registration in `MetricCalculatorProxy` automatically via `registerCalculator()`.
+- To add a metric: new `MetricCalculator` implementation + call `registerCalculator()`. Never edit `MetricsCalculationEngine` logic.
 - Owner: Raihan Naeem. Files: `src/main/java/com/hranalytics/metrics/`.
 
 ### Architectural — MVC (Web Layer)
@@ -87,7 +86,7 @@ Four patterns are implemented; three are course-mandated (one per category), plu
 
 The design was evaluated against these; do not break them when editing.
 
-**GRASP:** Information Expert (domain classes own their getters), Creator (factories/generators own construction), Controller (Facade is the system controller; MVC controllers own HTTP orchestration), Low Coupling (external access via Facade only), High Cohesion (one job per engine), Polymorphism (Chart, ExportFormat, MetricCalculator), Pure Fabrication (engines aren't domain concepts), Indirection (Facade, DataIntegrationLayer), Protected Variations (Template Method shields from metric-step change, Factory from chart-family change).
+**GRASP:** Information Expert (domain classes own their getters), Creator (factories/generators own construction), Controller (Facade is the system controller; MVC controllers own HTTP orchestration), Low Coupling (external access via Facade only), High Cohesion (one job per engine), Polymorphism (Chart, ExportFormat, MetricCalculator), Pure Fabrication (engines aren't domain concepts), Indirection (Facade, DataIntegrationLayer), Protected Variations (Proxy shields engine from overflow-handling changes, Factory from chart-family change).
 
 **SOLID:** SRP (one class, one reason to change), OCP (new metric/chart/export = new class, no edits), LSP (all calculator/chart/export subtypes are substitutable), ISP (narrow interfaces — ChartFactory, ExportFormat), DIP (engines depend on abstractions, never concrete classes).
 
@@ -185,9 +184,9 @@ Build script (`build.bat`) compiles all `.java` files under `src/` into `target/
 ## Coding Conventions
 
 - **Comments:** every public class needs a short header comment stating its role and which pattern it participates in (if any). Every non-trivial method needs a one-line purpose comment. The course requires code to be understandable to external readers.
-- **Naming:** `MetricCalculator` subclasses end in `Calculator`. Factory classes end in `Factory`. MVC controllers end in `Controller`. Exception classes match canonical names.
+- **Naming:** `MetricCalculator` implementations end in `Calculator`. Factory classes end in `Factory`. MVC controllers end in `Controller`. Exception classes match canonical names.
 - **No duplicate code across owners.** If Raihan needs a utility Prem already wrote, import it — do not re-implement.
-- **No switch/if-else on type.** Type-based branching is a signal that Template Method or Factory should be used instead.
+- **No switch/if-else on type.** Type-based branching is a signal that Proxy or Factory should be used instead.
 - **No direct access to internal modules from outside the package.** Everything external goes through `HRAnalyticsFacade`.
 - **Dependency direction:** always toward abstractions. Engines hold abstract references, never concrete class references.
 
@@ -195,7 +194,7 @@ Build script (`build.bat`) compiles all `.java` files under `src/` into `target/
 
 ## What Claude Should Do
 
-- When adding a new metric: create a new `MetricCalculator` subclass, register it in `MetricsCalculationEngine` via `registerCalculator()`. Never edit the engine's `calculateAll()` logic.
+- When adding a new metric: create a new `MetricCalculator` implementation, register it in `MetricsCalculationEngine` via `registerCalculator()` — the engine wraps it in `MetricCalculatorProxy` automatically. Never edit the engine's `calculateAll()` logic.
 - When adding a new chart type: extend `Chart`, add method to `ChartFactory`, implement in each concrete factory. Never edit `DashboardManager`.
 - When adding a new export format: extend `ExportFormat`. Never edit `ExportSharingModule` dispatch logic beyond registration.
 - When asked about "integration": default to routing through `HRAnalyticsFacade`.

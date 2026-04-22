@@ -8,9 +8,11 @@ import java.util.logging.Logger;
 
 /**
  * Delegates metric calculations to registered MetricCalculator instances.
+ * Each real calculator is wrapped in a MetricCalculatorProxy before registration,
+ * so logging and overflow handling are applied transparently at the proxy layer.
  * Uses Map<MetricType, MetricCalculator> — no switch statements or if-else chains.
- * To add a new metric: extend MetricCalculator, register here. Do not modify this class.
- * Pattern: Template Method (Behavioural). Owner: Raihan Naeem.
+ * To add a new metric: implement MetricCalculator, call registerCalculator(). Do not modify this class.
+ * Pattern: Proxy (Structural). Owner: Raihan Naeem.
  */
 public class MetricsCalculationEngine {
 
@@ -19,14 +21,14 @@ public class MetricsCalculationEngine {
     private final Map<MetricType, MetricCalculator> calculators = new EnumMap<>(MetricType.class);
 
     public MetricsCalculationEngine() {
-        calculators.put(MetricType.ATTRITION_RATE,         new AttritionRateCalculator());
-        calculators.put(MetricType.EMPLOYEE_GROWTH,        new EmployeeGrowthCalculator());
-        calculators.put(MetricType.AVERAGE_PERFORMANCE,    new AveragePerformanceCalculator());
-        calculators.put(MetricType.DEPARTMENT_METRICS,     new DepartmentMetricsCalculator());
-        calculators.put(MetricType.COMPENSATION_ANALYTICS, new CompensationAnalyticsCalculator());
+        registerCalculator(new AttritionRateCalculator());
+        registerCalculator(new EmployeeGrowthCalculator());
+        registerCalculator(new AveragePerformanceCalculator());
+        registerCalculator(new DepartmentMetricsCalculator());
+        registerCalculator(new CompensationAnalyticsCalculator());
     }
 
-    /** Calculates a single metric by delegating to the registered calculator. */
+    /** Calculates a single metric by delegating to the registered (proxied) calculator. */
     public MetricResult calculate(MetricType type, ProcessedData data) {
         MetricCalculator calc = calculators.get(type);
         if (calc == null) throw new IllegalArgumentException(
@@ -44,9 +46,13 @@ public class MetricsCalculationEngine {
         return results;
     }
 
-    /** Registers an additional calculator at runtime — extends without modifying this class. */
-    public void registerCalculator(MetricType type, MetricCalculator calculator) {
-        calculators.put(type, calculator);
-        LOG.info("Registered new calculator for: " + type);
+    /**
+     * Registers a new calculator at runtime — wraps it in a MetricCalculatorProxy automatically.
+     * Extends the engine without modifying its logic (OCP).
+     */
+    public void registerCalculator(MetricCalculator calculator) {
+        MetricType type = calculator.getMetricType();
+        calculators.put(type, new MetricCalculatorProxy(calculator));
+        LOG.info("Registered proxied calculator for: " + type);
     }
 }

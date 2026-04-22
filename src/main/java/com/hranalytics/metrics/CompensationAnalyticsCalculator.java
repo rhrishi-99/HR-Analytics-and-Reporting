@@ -3,36 +3,26 @@ package com.hranalytics.metrics;
 import com.hranalytics.exceptions.MetricCalculationOverflowException;
 import com.hranalytics.pipeline.ProcessedData;
 
-import java.util.Map;
-
 /**
- * Computes average gross compensation and per-department salary breakdown.
- * Overrides the computeBreakdown hook to expose department salary averages.
- * Extends MetricCalculator — only provides the domain-specific computation steps.
- * Pattern: Template Method (Behavioural). Owner: Raihan Naeem.
+ * Real Subject for the Proxy pattern — computes average gross compensation and per-department salary breakdown.
+ * Contains only domain logic; cross-cutting concerns (logging, overflow recovery) live in MetricCalculatorProxy.
+ * Pattern: Proxy (Structural). Owner: Raihan Naeem.
  */
-public class CompensationAnalyticsCalculator extends MetricCalculator {
+public class CompensationAnalyticsCalculator implements MetricCalculator {
 
+    /** Computes average compensation. Throws MetricCalculationOverflowException if headcount is zero. */
     @Override
-    protected double computeCurrentValue(ProcessedData data) {
+    public MetricResult calculate(ProcessedData data) {
         int headcount = data.getTotalHeadcount();
         if (headcount == 0) throw new MetricCalculationOverflowException("COMPENSATION_ANALYTICS",
                 "Headcount is 0 — cannot compute average compensation.");
-        return data.getTotalGrossSalary() / headcount;
+        double avgComp  = data.getTotalGrossSalary() / headcount;
+        double prevComp = avgComp * 0.97;
+        return new MetricResult(MetricType.COMPENSATION_ANALYTICS, "Avg Compensation",
+                avgComp, prevComp, "$", data.getAvgSalaryByDepartment());
     }
 
-    @Override
-    protected double computePreviousValue(ProcessedData data) {
-        return computeCurrentValue(data) * 0.97; // simulated prior-period baseline
-    }
-
-    /** Hook override — exposes per-department average salary map. */
-    @Override
-    protected Map<String, Double> computeBreakdown(ProcessedData data) {
-        return data.getAvgSalaryByDepartment();
-    }
-
-    @Override protected MetricType getMetricType() { return MetricType.COMPENSATION_ANALYTICS; }
-    @Override protected String getMetricName()     { return "Avg Compensation"; }
-    @Override protected String getUnit()           { return "$"; }
+    @Override public MetricType getMetricType() { return MetricType.COMPENSATION_ANALYTICS; }
+    @Override public String getMetricName()      { return "Avg Compensation"; }
+    @Override public String getUnit()            { return "$"; }
 }

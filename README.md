@@ -9,7 +9,7 @@ and transforms it into dashboards, KPI cards, charts, and exportable reports.
 | Member | USN | Owns |
 |--------|-----|------|
 | Prem M Thakur | PES1UG23AM214 | Data pipeline, Access control, Facade, Integration boundaries |
-| Raihan Naeem | PES1UG23AM227 | Metrics engine, Template Method implementations, Analytics engine |
+| Raihan Naeem | PES1UG23AM227 | Metrics engine, Proxy implementations, Analytics engine |
 | R G Rhrishi | PES1UG23AM222 | Charts, Dashboard, Reports, Exports, Filters, Web UI, MVC controllers |
 
 ---
@@ -20,7 +20,7 @@ and transforms it into dashboards, KPI cards, charts, and exportable reports.
 |---------|----------|-------|
 | **Facade** | Structural | `HRAnalyticsFacade` — single external entry point for all subsystems |
 | **Abstract Factory** | Creational | `ChartFactory` → `EmployeeGrowthChartFactory`, `AttritionChartFactory`, `CompensationChartFactory` |
-| **Template Method** | Behavioural | `MetricCalculator` — skeleton in base class, 5 concrete calculators fill in steps |
+| **Proxy** | Structural | `MetricCalculatorProxy` wraps 5 real calculators, adds logging and overflow handling transparently |
 | **MVC** | Architectural | `DashboardController`, `ReportController`, `KPIController` — web layer separation |
 
 ---
@@ -37,7 +37,7 @@ External Subsystems
         ├── DataCollectionModule      ← pulls from 4 service interfaces
         ├── DataIntegrationLayer      ← cleans & deduplicates
         ├── DataProcessingEngine      ← applies filters
-        ├── MetricsCalculationEngine  ← Template Method pattern
+        ├── MetricsCalculationEngine  ← Proxy pattern
         ├── AnalyticsEngine           ← generates insights
         ├── DashboardManager          ← Abstract Factory (charts)
         ├── ReportGenerator
@@ -108,7 +108,7 @@ src/main/java/com/hranalytics/
 │   ├── mapper/                      PayrollMapper, AttendanceMapper, PerformanceMapper
 │   ├── service/                     HRAnalyticsService + 4 inbound service interfaces
 │   └── stub/                        In-memory stubs for all 4 services
-├── metrics/                         MetricCalculator (abstract) + 5 concrete calculators + engine
+├── metrics/                         MetricCalculator (interface) + MetricCalculatorProxy + 5 real calculators + engine
 ├── pipeline/                        RawHRData, ProcessedData, pipeline stage classes
 ├── reports/                         ReportGenerator, Report, ReportType
 └── web/

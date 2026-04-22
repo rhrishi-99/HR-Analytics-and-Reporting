@@ -12,7 +12,7 @@
 | Member | USN | Role | Pattern Owned |
 |--------|-----|------|---------------|
 | Prem M Thakur | PES1UG23AM214 | Data pipeline, Access control, Facade, Integration boundaries | Facade (Structural) |
-| Raihan Naeem | PES1UG23AM227 | Metrics engine, Template Method implementations, Analytics engine | Template Method (Behavioural) |
+| Raihan Naeem | PES1UG23AM227 | Metrics engine, Proxy implementations, Analytics engine | Proxy (Structural) |
 | R G Rhrishi | PES1UG23AM222 | Charts, Dashboard, Reports, Exports, Filters, Web UI, MVC controllers | Abstract Factory (Creational) + MVC (Architectural) |
 
 ---
@@ -50,7 +50,7 @@ The parent HRMS product (Feature #12) requires a sub-system that:
 │         ├── DataCollectionModule                                    │
 │         ├── DataIntegrationLayer                                    │
 │         ├── DataProcessingEngine                                    │
-│         ├── MetricsCalculationEngine  ← Template Method Pattern      │
+│         ├── MetricsCalculationEngine  ← Proxy Pattern                │
 │         ├── AnalyticsEngine                                         │
 │         ├── DashboardManager          ← Abstract Factory Pattern    │
 │         ├── ReportGenerator                                         │
@@ -101,20 +101,21 @@ Applies the user's `FilterCriteria`:
   average salary, average attendance hours
 - Produces a `ProcessedData` object with all derived statistics
 
-### Step 5 — Metrics Calculation (`MetricsCalculationEngine` — Template Method Pattern)
+### Step 5 — Metrics Calculation (`MetricsCalculationEngine` — Proxy Pattern)
 Delegates to one `MetricCalculator` per metric type via `Map<MetricType, MetricCalculator>`.
-No switch statements, no if-else chains. The algorithm skeleton lives once in the abstract
-base class; each subclass fills in only the domain-specific steps.
+No switch statements, no if-else chains. Each real calculator is wrapped in a
+`MetricCalculatorProxy` that transparently handles logging and overflow recovery — the
+real calculators contain only domain computation logic.
 
-| MetricType | Calculator Class | Computes |
-|------------|-----------------|---------|
+| MetricType | Real Subject Class | Computes |
+|------------|-------------------|---------|
 | `ATTRITION_RATE` | `AttritionRateCalculator` | % employees who left |
 | `EMPLOYEE_GROWTH` | `EmployeeGrowthCalculator` | % headcount change |
 | `AVERAGE_PERFORMANCE` | `AveragePerformanceCalculator` | Avg score 0–5 |
 | `DEPARTMENT_METRICS` | `DepartmentMetricsCalculator` | Per-dept KPI breakdown |
 | `COMPENSATION_ANALYTICS` | `CompensationAnalyticsCalculator` | Salary distribution |
 
-Each calculator returns a `MetricResult` with `currentValue`, `previousValue`, `trend`, `unit`, and a `flagged` boolean (set if data was unavailable).
+Each calculator returns a `MetricResult` with `currentValue`, `previousValue`, `trend`, `unit`, and a `flagged` boolean (set if `METRIC_CALCULATION_OVERFLOW` was caught by the proxy).
 
 ### Step 6 — Analytics Engine (`AnalyticsEngine`)
 Reads the computed `MetricResult` map and generates human-readable insight
@@ -224,51 +225,58 @@ DashboardManager
 
 ---
 
-### 4.3 Template Method Pattern (Behavioural) — Raihan Naeem
+### 4.3 Proxy Pattern (Structural) — Raihan Naeem
 
-**Problem:** Every metric calculation follows the same structural flow: validate data,
-compute current value, compute previous value, handle overflow, build MetricResult.
-Repeating this skeleton across all 5 calculators duplicates boilerplate and scatters
-the overflow-handling logic.
+**Problem:** Every metric calculation requires the same cross-cutting concerns: logging
+before and after the call, and catching `METRIC_CALCULATION_OVERFLOW` to return a
+flagged result instead of propagating. Duplicating this handling inside all 5 calculators
+scatters the recovery logic and violates SRP.
 
-**Solution:** Abstract class `MetricCalculator` defines the fixed algorithm skeleton
-in a `final calculate()` template method. Subclasses implement only the
-domain-specific primitive operations (`computeCurrentValue`, `computePreviousValue`).
-A hook operation (`computeBreakdown`) has a default empty implementation that
-Department and Compensation calculators override.
+**Solution:** `MetricCalculator` is an interface (Subject). Each real calculator implements
+it directly and contains only domain computation logic — it throws freely on bad data.
+`MetricCalculatorProxy` implements the same interface, wraps any real calculator, and
+intercepts `calculate()` to add logging and overflow recovery in one place.
+`MetricsCalculationEngine` wraps every registration in a proxy automatically.
 
 ```
-MetricCalculator (abstract base — owns the algorithm skeleton)
-  final calculate(data):
-      current  = computeCurrentValue(data)   ← abstract: subclass fills in
-      previous = computePreviousValue(data)  ← abstract: subclass fills in
-      breakdown = computeBreakdown(data)     ← hook:     default empty map
-      return MetricResult(...)               ← built once here, not repeated
-  catch overflow → return flagged result     ← handled once here, not repeated
+MetricCalculator (interface — Subject)
+  calculate(data): MetricResult
+  getMetricType() / getMetricName() / getUnit()
 
-      ├── AttritionRateCalculator        → computeCurrentValue: separations/avgHeadcount×100
-      ├── EmployeeGrowthCalculator       → computeCurrentValue: (cur-prev)/prev×100
-      ├── AveragePerformanceCalculator   → computeCurrentValue: avg of performance scores
-      ├── DepartmentMetricsCalculator    → overrides computeBreakdown: dept share map
-      └── CompensationAnalyticsCalculator→ overrides computeBreakdown: dept salary map
+MetricCalculatorProxy (Proxy — implements MetricCalculator)
+  calculate(data):
+      LOG "delegating for <type>"            ← added transparently
+      result = real.calculate(data)          ← delegates to real subject
+      LOG "completed → <result>"             ← added transparently
+      return result
+  catch MetricCalculationOverflowException:
+      LOG warning                            ← handled once here, not in real subjects
+      return flagged MetricResult(type, name, unit)
+
+      ← wraps each of:
+      ├── AttritionRateCalculator        → separations / avgHeadcount × 100
+      ├── EmployeeGrowthCalculator       → (current − previous) / previous × 100
+      ├── AveragePerformanceCalculator   → avg of performance scores
+      ├── DepartmentMetricsCalculator    → per-dept headcount share %
+      └── CompensationAnalyticsCalculator→ avg gross salary + dept breakdown
 
 MetricsCalculationEngine
-      └── Map<MetricType, MetricCalculator>
-            calculators.get(type).calculate(data)
+      └── Map<MetricType, MetricCalculator>  (each entry is a MetricCalculatorProxy)
+            registerCalculator(real) → puts new MetricCalculatorProxy(real)
 ```
 
-**Key difference from Strategy:**
-Strategy puts the entire algorithm in each subclass. Template Method puts the
-skeleton in the base class and lets subclasses fill in only the varying steps —
-eliminating duplicated try/catch and result-construction boilerplate.
+**Key difference from Template Method:**
+Template Method placed the shared behavior (overflow catch, logging) in an abstract base
+class that every calculator extended. Proxy keeps the real calculators completely free of
+cross-cutting concerns — the proxy intercepts the call externally, without inheritance.
 
-Adding a new metric = one new `MetricCalculator` subclass + one map registration.
-The engine and base class are never modified (OCP).
+Adding a new metric = one new `MetricCalculator` implementation + `registerCalculator()`.
+The engine and proxy are never modified (OCP).
 
 **GRASP principles satisfied:**
-- **Protected Variations** — Template Method shields engine from metric algorithm changes
-- **Polymorphism** — all calculators are substitutable via the base class reference
-- **High Cohesion** — each calculator has exactly one domain responsibility
+- **Protected Variations** — Proxy shields the engine from overflow-handling changes
+- **Polymorphism** — all calculators and the proxy are substitutable via the interface
+- **High Cohesion** — each real calculator has exactly one domain responsibility; the proxy has one cross-cutting responsibility
 
 ---
 
@@ -314,10 +322,10 @@ ApiHandler (Router + View)
 | Principle | How it is applied |
 |-----------|------------------|
 | **SRP** — Single Responsibility | Every class has one job: `DataCollectionModule` only collects, `MetricsCalculationEngine` only delegates, `ExportSharingModule` only exports |
-| **OCP** — Open/Closed | New metric → new `MetricCalculator` subclass, no engine edit. New chart theme → new Factory, no DashboardManager edit. New export format → new ExportFormat subclass, no ExportSharingModule edit |
-| **LSP** — Liskov Substitution | All `MetricCalculator` subclasses are substitutable. All `ChartFactory` implementations are substitutable. All `ExportFormat` implementations are substitutable |
+| **OCP** — Open/Closed | New metric → new `MetricCalculator` implementation, no engine edit. New chart theme → new Factory, no DashboardManager edit. New export format → new ExportFormat subclass, no ExportSharingModule edit |
+| **LSP** — Liskov Substitution | All `MetricCalculator` implementations are substitutable (real subjects and proxy share the same interface). All `ChartFactory` implementations are substitutable. All `ExportFormat` implementations are substitutable |
 | **ISP** — Interface Segregation | Narrow interfaces: `ChartFactory` (3 methods), `HRAnalyticsService` (4 methods), `EmployeeService` (4 methods). `MetricCalculator` exposes one public method (`calculate`) |
-| **DIP** — Dependency Inversion | `DashboardManager` depends on `ChartFactory` (abstract). `MetricsCalculationEngine` depends on `MetricCalculator` (abstract). `DataCollectionModule` depends on `EmployeeService`, `PayrollService`, etc. (abstractions). MVC Controllers depend on `HRAnalyticsFacade` not on pipeline internals |
+| **DIP** — Dependency Inversion | `DashboardManager` depends on `ChartFactory` (interface). `MetricsCalculationEngine` depends on `MetricCalculator` (interface). `DataCollectionModule` depends on `EmployeeService`, `PayrollService`, etc. (abstractions). MVC Controllers depend on `HRAnalyticsFacade` not on pipeline internals |
 
 ---
 
@@ -333,7 +341,7 @@ ApiHandler (Router + View)
 | **Polymorphism** | `ChartFactory`, `MetricCalculator`, `ExportFormat` all exploit polymorphism |
 | **Pure Fabrication** | `DataIntegrationLayer`, `DataProcessingEngine`, `AnalyticsEngine` — not domain concepts but necessary for cohesion |
 | **Indirection** | `HRAnalyticsFacade` and `DataIntegrationLayer` act as indirection layers |
-| **Protected Variations** | Template Method shields the engine from metric algorithm changes. Factory shields DashboardManager from chart family changes |
+| **Protected Variations** | Proxy shields the engine from overflow-handling changes. Factory shields DashboardManager from chart family changes |
 
 ---
 
@@ -471,7 +479,7 @@ WebServer
 | `integration/mapper` | 3 | PayrollMapper, AttendanceMapper, PerformanceMapper |
 | `integration/service` | 5 | HRAnalyticsService + 4 inbound service interfaces |
 | `integration/stub` | 4 | In-memory stubs for all 4 services |
-| `metrics` | 9 | MetricCalculator (abstract), MetricType, MetricResult, MetricsCalculationEngine + 5 concrete calculators |
+| `metrics` | 10 | MetricCalculator (interface), MetricCalculatorProxy, MetricType, MetricResult, MetricsCalculationEngine + 5 real calculators |
 | `pipeline` | 5 | RawHRData, ProcessedData, DataCollectionModule, DataIntegrationLayer, DataProcessingEngine |
 | `reports` | 3 | Report, ReportGenerator, ReportType |
 | `web` | 3 | WebServer, ApiHandler (Router+View), WebMain |
@@ -518,12 +526,12 @@ The HR team needs different visual contexts — growth, attrition, compensation.
 Each context needs a consistent family of chart types. Without the factory,
 adding a new chart theme would require editing `DashboardManager`.
 
-**Why Template Method for metrics?**
-Every metric calculation shares the same structural flow: validate → compute current →
-compute previous → handle overflow → build MetricResult. Strategy would repeat this
-skeleton in all 5 subclasses. Template Method puts the skeleton once in `MetricCalculator`,
-eliminates duplicated try/catch and result-construction, and lets subclasses fill in
-only the domain-specific computation steps. Adding a new metric is still one new class only (OCP).
+**Why Proxy for metrics?**
+Without it, every metric calculator would repeat the same try/catch overflow recovery and
+logging boilerplate across all 5 classes. `MetricCalculatorProxy` intercepts every
+`calculate()` call transparently — real calculators contain only domain logic and throw
+freely on bad data. The engine wraps every registration in the proxy automatically, so
+adding a new metric is still one new class only (OCP).
 
 **Why MVC for the web layer?**
 Without MVC, `ApiHandler` was responsible for parsing, business logic, and serialisation —
