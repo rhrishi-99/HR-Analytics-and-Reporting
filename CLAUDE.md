@@ -156,7 +156,8 @@ The sub-system integrates with four external subsystems. At least two are course
 
 ### Integration 4 — Database Sub-System (we consume)
 - **Direction:** inbound data pull.
-- **Interfaces:** `EmployeeService`, `PayrollService`, `AttendanceService` (stubs in `integration/stub/`).
+- **Interfaces:** `EmployeeService`, `PayrollService`, `AttendanceService`, `PerformanceService`.
+- **Implementation:** `DB*ServiceAdapter` classes in `com.hranalytics.integration.db` wrapping `hrms-database-1.0-SNAPSHOT-all.jar`.
 - **Contract doc:** `HR_Analytics_Database_Integration_Contract.md`.
 
 All partners touch only the Facade. Do not let integration code reach into pipeline internals.

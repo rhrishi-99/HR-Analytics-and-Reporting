@@ -5,7 +5,10 @@ import com.hranalytics.charts.EmployeeGrowthChartFactory;
 import com.hranalytics.facade.HRAnalyticsFacade;
 import com.hranalytics.integration.ESSPortalPublisher;
 import com.hranalytics.integration.PerformanceManagementClient;
-import com.hranalytics.integration.stub.*;
+import com.hranalytics.integration.db.DBAttendanceServiceAdapter;
+import com.hranalytics.integration.db.DBEmployeeServiceAdapter;
+import com.hranalytics.integration.db.DBPayrollServiceAdapter;
+import com.hranalytics.integration.db.DBPerformanceServiceAdapter;
 import com.sun.net.httpserver.HttpServer;
 
 import java.io.IOException;
@@ -28,10 +31,10 @@ public class WebServer {
         HRAnalyticsFacade facade = new HRAnalyticsFacade(
                 acm,
                 new EmployeeGrowthChartFactory(),
-                new EmployeeServiceStub(),
-                new PayrollServiceStub(),
-                new AttendanceServiceStub(),
-                new PerformanceManagementClient(new PerformanceServiceStub()),
+                new DBEmployeeServiceAdapter(),
+                new DBPayrollServiceAdapter(),
+                new DBAttendanceServiceAdapter(),
+                new PerformanceManagementClient(new DBPerformanceServiceAdapter()),
                 new ESSPortalPublisher());
 
         HttpServer server = HttpServer.create(new InetSocketAddress(port), 0);

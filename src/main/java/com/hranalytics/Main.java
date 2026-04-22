@@ -14,10 +14,10 @@ import com.hranalytics.integration.PerformanceManagementClient;
 import com.hranalytics.integration.dto.DashboardSnapshot;
 import com.hranalytics.integration.dto.KPISnapshot;
 import com.hranalytics.integration.dto.ReportSummary;
-import com.hranalytics.integration.stub.AttendanceServiceStub;
-import com.hranalytics.integration.stub.EmployeeServiceStub;
-import com.hranalytics.integration.stub.PayrollServiceStub;
-import com.hranalytics.integration.stub.PerformanceServiceStub;
+import com.hranalytics.integration.db.DBAttendanceServiceAdapter;
+import com.hranalytics.integration.db.DBEmployeeServiceAdapter;
+import com.hranalytics.integration.db.DBPayrollServiceAdapter;
+import com.hranalytics.integration.db.DBPerformanceServiceAdapter;
 import com.hranalytics.integration.attrition.HRAnalyticsReportingServiceImpl;
 import com.hranalytics.reports.Report;
 import com.hranalytics.reports.ReportType;
@@ -49,12 +49,12 @@ public class Main {
         AccessControlModule accessControl = new AccessControlModule();
         accessControl.loadDefaultUsers();
 
-        // Each stub can be replaced with the real implementation without touching any other class
-        EmployeeServiceStub   employeeStub    = new EmployeeServiceStub();
-        PayrollServiceStub    payrollStub     = new PayrollServiceStub();
-        AttendanceServiceStub attendanceStub  = new AttendanceServiceStub();
+        // Real implementations from the Database Sub-System (via Adapters)
+        DBEmployeeServiceAdapter   employeeService    = new DBEmployeeServiceAdapter();
+        DBPayrollServiceAdapter    payrollService     = new DBPayrollServiceAdapter();
+        DBAttendanceServiceAdapter attendanceService  = new DBAttendanceServiceAdapter();
         PerformanceManagementClient perfClient =
-                new PerformanceManagementClient(new PerformanceServiceStub());
+                new PerformanceManagementClient(new DBPerformanceServiceAdapter());
 
         ESSPortalPublisher essPublisher = new ESSPortalPublisher();
         ChartFactory chartFactory = new EmployeeGrowthChartFactory();
@@ -62,9 +62,9 @@ public class Main {
         HRAnalyticsFacade facade = new HRAnalyticsFacade(
                 accessControl,
                 chartFactory,
-                employeeStub,
-                payrollStub,
-                attendanceStub,
+                employeeService,
+                payrollService,
+                attendanceService,
                 perfClient,
                 essPublisher);
 
@@ -114,7 +114,7 @@ public class Main {
         HRAnalyticsFacade attritionFacade = new HRAnalyticsFacade(
                 accessControl,
                 new AttritionChartFactory(),
-                employeeStub, payrollStub, attendanceStub, perfClient,
+                employeeService, payrollService, attendanceService, perfClient,
                 essPublisher);
         FilterCriteria hrFilter = new FilterCriteria();
         hrFilter.setFilterDepartment(List.of("HR"));
@@ -144,7 +144,7 @@ public class Main {
         // ── 11. Integration 3 — Attrition-Risk Sub-System ──────────────────────
         banner("STEP 9: ATTRITION-RISK INTEGRATION (IHRAnalyticsReportingService)");
         IHRAnalyticsReportingService attritionApi =
-                new HRAnalyticsReportingServiceImpl(facade, employeeStub);
+                new HRAnalyticsReportingServiceImpl(facade, employeeService);
 
         System.out.println("  Organisation Turnover Rate: "
                 + String.format("%.2f%%", attritionApi.getOrganisationTurnoverRate()));
