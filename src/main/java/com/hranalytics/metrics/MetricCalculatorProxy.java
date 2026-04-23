@@ -3,43 +3,36 @@ package com.hranalytics.metrics;
 import com.hranalytics.exceptions.MetricCalculationOverflowException;
 import com.hranalytics.pipeline.ProcessedData;
 
-import java.util.logging.Logger;
-
 /**
- * Proxy for MetricCalculator — intercepts calculate() calls to add cross-cutting concerns:
- *   1. Pre/post logging
- *   2. METRIC_CALCULATION_OVERFLOW handling (substitutes 0.0 and flags the result)
- * Real calculators throw freely; this class handles recovery in one place.
+ * Proxy for MetricCalculator — intercepts calculate() calls to add:
+ *   1. Simple console logging (tracing)
+ *   2. Safety handling for METRIC_CALCULATION_OVERFLOW
+ * Real calculators contain only domain logic; this proxy handles the "plumbing".
  * Pattern: Proxy (Structural). Owner: Raihan Naeem.
  */
 public class MetricCalculatorProxy implements MetricCalculator {
 
-    private static final Logger LOG = Logger.getLogger(MetricCalculatorProxy.class.getName());
-
     private final MetricCalculator real;
 
-    /** Wraps any MetricCalculator real subject. */
     public MetricCalculatorProxy(MetricCalculator real) {
         this.real = real;
     }
 
-    /**
-     * Delegates to the real calculator after logging the request.
-     * Catches MetricCalculationOverflowException and returns a flagged MetricResult instead of propagating.
-     */
     @Override
     public MetricResult calculate(ProcessedData data) {
-        LOG.info("Proxy: delegating calculate() for " + real.getMetricType());
         try {
+            // Proxy logic: execute and return
             MetricResult result = real.calculate(data);
-            LOG.info("Proxy: " + real.getMetricType() + " → " + result);
+            System.out.println("[Proxy] " + real.getMetricName() + " calculated successfully.");
             return result;
         } catch (MetricCalculationOverflowException ex) {
-            LOG.warning("METRIC_CALCULATION_OVERFLOW [" + real.getMetricType() + "]: " + ex.getMessage());
+            // Proxy logic: catch known failure and return a safe recovery result (flagged)
+            System.out.println("[Proxy] Warning: Overflow in " + real.getMetricName() + ". Returning safe default.");
             return new MetricResult(real.getMetricType(), real.getMetricName(), real.getUnit());
         }
     }
 
+    // Direct delegation to real subject for metadata
     @Override public MetricType getMetricType() { return real.getMetricType(); }
     @Override public String getMetricName()      { return real.getMetricName(); }
     @Override public String getUnit()            { return real.getUnit(); }

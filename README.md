@@ -20,7 +20,7 @@ and transforms it into dashboards, KPI cards, charts, and exportable reports.
 |---------|----------|-------|
 | **Facade** | Structural | `HRAnalyticsFacade` — single external entry point for all subsystems |
 | **Abstract Factory** | Creational | `ChartFactory` → `EmployeeGrowthChartFactory`, `AttritionChartFactory`, `CompensationChartFactory` |
-| **Proxy** | Structural | `MetricCalculatorProxy` wraps 5 real calculators, adds logging and overflow handling transparently |
+| **Proxy** | Structural | `MetricCalculatorProxy` — intercepts calls for transparent logging and safe arithmetic recovery |
 | **MVC** | Architectural | `DashboardController`, `ReportController`, `KPIController` — web layer separation |
 
 ---
@@ -108,7 +108,7 @@ src/main/java/com/hranalytics/
 │   ├── mapper/                      PayrollMapper, AttendanceMapper, PerformanceMapper
 │   ├── service/                     HRAnalyticsService + 4 inbound service interfaces
 │   └── stub/                        In-memory stubs for all 4 services
-├── metrics/                         MetricCalculator (interface) + MetricCalculatorProxy + 5 real calculators + engine
+├── metrics/                         MetricCalculator (interface) + Proxy + 5 calculators + engine
 ├── pipeline/                        RawHRData, ProcessedData, pipeline stage classes
 ├── reports/                         ReportGenerator, Report, ReportType
 └── web/

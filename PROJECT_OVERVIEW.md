@@ -227,43 +227,26 @@ DashboardManager
 
 ### 4.3 Proxy Pattern (Structural) — Raihan Naeem
 
-**Problem:** Every metric calculation requires the same cross-cutting concerns: logging
-before and after the call, and catching `METRIC_CALCULATION_OVERFLOW` to return a
-flagged result instead of propagating. Duplicating this handling inside all 5 calculators
-scatters the recovery logic and violates SRP.
+**Problem:** Every metric calculation requires the same secondary logic: logging the
+progress and catching `METRIC_CALCULATION_OVERFLOW` to return a safe result.
+Repeating this inside every calculator clutters the domain logic.
 
-**Solution:** `MetricCalculator` is an interface (Subject). Each real calculator implements
-it directly and contains only domain computation logic — it throws freely on bad data.
-`MetricCalculatorProxy` implements the same interface, wraps any real calculator, and
-intercepts `calculate()` to add logging and overflow recovery in one place.
-`MetricsCalculationEngine` wraps every registration in a proxy automatically.
+**Solution:** `MetricCalculatorProxy` acts as a wrapper. It implements the same
+interface as the real calculators. When `calculate()` is called, the proxy:
+1. Logs that the calculation is starting.
+2. Calls the real calculator (the "Real Subject").
+3. Returns the result if successful.
+4. Catches any arithmetic failure and returns a safe, flagged default.
 
 ```
-MetricCalculator (interface — Subject)
-  calculate(data): MetricResult
-  getMetricType() / getMetricName() / getUnit()
-
-MetricCalculatorProxy (Proxy — implements MetricCalculator)
-  calculate(data):
-      LOG "delegating for <type>"            ← added transparently
-      result = real.calculate(data)          ← delegates to real subject
-      LOG "completed → <result>"             ← added transparently
-      return result
-  catch MetricCalculationOverflowException:
-      LOG warning                            ← handled once here, not in real subjects
-      return flagged MetricResult(type, name, unit)
-
-      ← wraps each of:
-      ├── AttritionRateCalculator        → separations / avgHeadcount × 100
-      ├── EmployeeGrowthCalculator       → (current − previous) / previous × 100
-      ├── AveragePerformanceCalculator   → avg of performance scores
-      ├── DepartmentMetricsCalculator    → per-dept headcount share %
-      └── CompensationAnalyticsCalculator→ avg gross salary + dept breakdown
-
-MetricsCalculationEngine
-      └── Map<MetricType, MetricCalculator>  (each entry is a MetricCalculatorProxy)
-            registerCalculator(real) → puts new MetricCalculatorProxy(real)
+MetricCalculator (Subject Interface)
+      ├── MetricCalculatorProxy (Proxy) → intercepts calls
+      └── AttritionRateCalculator (Real Subject)
+      └── ...
 ```
+
+**Key Benefit:** Real calculators remain "pure" — they only contain the math formulas.
+All the "plumbing" (logging/safety) is handled in one place by the Proxy.
 
 **Key difference from Template Method:**
 Template Method placed the shared behavior (overflow catch, logging) in an abstract base
@@ -527,11 +510,9 @@ Each context needs a consistent family of chart types. Without the factory,
 adding a new chart theme would require editing `DashboardManager`.
 
 **Why Proxy for metrics?**
-Without it, every metric calculator would repeat the same try/catch overflow recovery and
-logging boilerplate across all 5 classes. `MetricCalculatorProxy` intercepts every
-`calculate()` call transparently — real calculators contain only domain logic and throw
-freely on bad data. The engine wraps every registration in the proxy automatically, so
-adding a new metric is still one new class only (OCP).
+It separates our "math logic" from our "system logic". The real calculators only do math.
+The `MetricCalculatorProxy` handles the tracing and safety. This keeps the code clean
+and ensures that a single bad data point doesn't crash the entire dashboard.
 
 **Why MVC for the web layer?**
 Without MVC, `ApiHandler` was responsible for parsing, business logic, and serialisation —

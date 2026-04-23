@@ -24,3 +24,6 @@ Thumbs.db
 
 # Exported reports (generated at runtime)
 output/
+
+# Personal study guides
+raihan.md
